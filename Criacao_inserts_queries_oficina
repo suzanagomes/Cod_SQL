@@ -1,0 +1,413 @@
+
+
+
+----------------------------------------------------------------------------------------------
+Criação
+
+-- Criação do Banco de Dados
+CREATE DATABASE IF NOT EXISTS Projeto_SQL_Do_Zero;
+
+-- Seleciona o Banco de Dados
+USE Projeto_SQL_Do_Zero;
+
+-- Tabela de Clientes
+CREATE TABLE IF NOT EXISTS Clientes (
+    id_cliente INT AUTO_INCREMENT PRIMARY KEY,
+    Nome VARCHAR(100) NOT NULL,
+    Telefone VARCHAR(15),
+    Email VARCHAR(100),
+    Endereco VARCHAR(255)
+);
+
+-- Tabela de Veículos
+CREATE TABLE IF NOT EXISTS Veiculos (
+    id_veiculo INT AUTO_INCREMENT PRIMARY KEY,
+    Placa VARCHAR(10) NOT NULL,
+    Marca VARCHAR(50) NOT NULL,
+    Modelo VARCHAR(50) NOT NULL,
+    AnoFabricacao INT
+);
+
+-- Tabela de Funcionários
+CREATE TABLE IF NOT EXISTS Funcionarios (
+    id_funcionario INT AUTO_INCREMENT PRIMARY KEY,
+    Nome VARCHAR(100) NOT NULL,
+    Cargo VARCHAR(50) NOT NULL
+);
+
+-- Tabela de Ordens de Serviço
+CREATE TABLE IF NOT EXISTS Ordens_servico (
+    id_ordem_servico INT AUTO_INCREMENT PRIMARY KEY,
+    id_cliente INT NOT NULL,
+    id_veiculo INT NOT NULL,
+    id_funcionario INT NOT NULL,
+    data_entrada DATE NOT NULL,
+    data_saida DATE,
+    Observacoes TEXT,
+    FOREIGN KEY (id_cliente) REFERENCES Clientes(id_cliente),
+    FOREIGN KEY (id_veiculo) REFERENCES Veiculos(id_veiculo),
+    FOREIGN KEY (id_funcionario) REFERENCES Funcionarios(id_funcionario)
+);
+
+-- Tabela de Movimentacao do Veiculo
+CREATE TABLE IF NOT EXISTS Movimentacao_veiculo (
+    id_movimentacao INT AUTO_INCREMENT PRIMARY KEY,
+    Veiculo INT NOT NULL,
+    data_entrada DATE NOT NULL,
+    data_saida DATE,
+    Observacoes TEXT,
+    FOREIGN KEY (Veiculo) REFERENCES Veiculos(id_veiculo)
+);
+
+-- Tabela de TipoServico
+CREATE TABLE IF NOT EXISTS Tipo_servico (
+    id_tipo_servico INT AUTO_INCREMENT PRIMARY KEY,
+    DescricaoTipo VARCHAR(100) NOT NULL
+);
+
+-- Atualização da Tabela de Ordens de Serviço
+ALTER TABLE Ordens_servico
+ADD id_movimentacao INT,
+ADD id_tipo_servico INT,
+ADD FOREIGN KEY (id_movimentacao) REFERENCES Movimentacao_veiculo(id_movimentacao),
+ADD FOREIGN KEY (id_tipo_servico) REFERENCES Tipo_servico(id_tipo_servico);
+
+------------------------------------------------------
+--INSERTS
+
+-- Tabela de Clientes: informações sobre os clientes da oficina.
+
+CREATE TABLE clientes (
+    id_cliente INT AUTO_INCREMENT PRIMARY KEY,
+    nome VARCHAR(100) NOT NULL,
+    telefone VARCHAR(15),
+    endereco VARCHAR(255),
+    dt_cadastro DATE,
+    email VARCHAR(100),
+    CONSTRAINT unique_email UNIQUE (email)
+);
+
+-- Tabela de Veículos : detalhes sobre os veículos dos clientes.
+
+CREATE TABLE veiculos (
+    id_veiculo INT AUTO_INCREMENT PRIMARY KEY,
+    id_cliente INT,
+    marca VARCHAR(50) NOT NULL,
+    modelo VARCHAR(50) NOT NULL,
+    anoFabricacao YEAR,
+    placa VARCHAR(10) NOT NULL UNIQUE,
+    CONSTRAINT fk_cliente FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente)
+);
+
+-- Tabela de Serviços: registra os serviços realizados nos veículos.
+
+CREATE TABLE servicos (
+    id_servico INT AUTO_INCREMENT PRIMARY KEY,
+    id_veiculo INT,
+    data_servico DATE,
+    descricao TEXT,
+    valor DECIMAL(10, 2),
+    CONSTRAINT fk_veiculo FOREIGN KEY (id_veiculo) REFERENCES veiculos(id_veiculo)
+);
+
+-- Tabela de Pedidos
+-- Esta tabela registra os pedidos de peças ou componentes.
+
+CREATE TABLE pedidos (
+    id_pedido INT AUTO_INCREMENT PRIMARY KEY,
+    id_cliente INT,
+    data_pedido DATE,
+    status_pedido ENUM('Em andamento', 'Concluído') DEFAULT 'Em andamento',
+    CONSTRAINT fk_cliente_pedido FOREIGN KEY (id_cliente) REFERENCES clientes(id_cliente)
+);
+
+-- Tabela de Itens do Pedido
+-- Esta tabela relaciona os produtos pedidos em cada pedido.
+
+CREATE TABLE itensPedido (
+    id_pedido INT,
+    id_servico INT,
+    quantidade INT DEFAULT 1,
+    CONSTRAINT fk_pedido FOREIGN KEY (id_pedido) REFERENCES pedidos(id_pedido),
+    CONSTRAINT fk_servico FOREIGN KEY (id_servico) REFERENCES servicos(id_servico)
+);
+
+-- Tabela de Situação do Pagamento
+-- Esta tabela registra as situações de pagamento dos pedidos.
+
+CREATE TABLE situacaoPagamento (
+    id_pedido INT,
+    data_pagamento DATE,
+    valor_pago DECIMAL(10, 2),
+    CONSTRAINT fk_pedido_pagamento FOREIGN KEY (id_pedido) REFERENCES pedidos(id_pedido)
+);
+
+-- Tabela de Relatório de Serviços
+-- Esta tabela registra o histórico de serviços feitos em cada veículo.
+
+CREATE TABLE relatorioServicos (
+    id_veiculo INT,
+    data_entrada DATE,
+    data_saida DATE,
+    servico_realizado TEXT,
+    CONSTRAINT fk_veiculo_relatorio FOREIGN KEY (id_veiculo) REFERENCES veiculos(id_veiculo)
+);
+
+-- Função para calcular a idade dos clientes com base na data de nascimento
+DELIMITER //
+CREATE FUNCTION calcular_idade(dataNascimento DATE)
+RETURNS INT
+DETERMINISTIC
+BEGIN
+    DECLARE idade INT;
+    SET idade = YEAR(CURDATE()) - YEAR(dataNascimento);
+    IF (MONTH(CURDATE()) < MONTH(dataNascimento) OR (MONTH(CURDATE()) = MONTH(dataNascimento) AND DAY(CURDATE()) < DAY(dataNascimento))) THEN
+        SET idade = idade - 1;
+    END IF;
+    RETURN idade;
+END;
+//
+DELIMITER ;
+
+-- Função para identificar clientes antigos (com mais de 3 anos de cadastro)
+DELIMITER //
+CREATE FUNCTION clientes_antigo()
+RETURNS INT
+DETERMINISTIC
+BEGIN
+    DECLARE totalClientesAntigos INT;
+    SET totalClientesAntigos = 0;
+    SELECT COUNT(*) INTO totalClientesAntigos FROM clientes WHERE calcularIdade(dt_cadastro) > 3;
+    RETURN totalClientesAntigos;
+END;
+//
+DELIMITER ;
+
+-- Função para agendar serviços de manutenção preventiva
+DELIMITER //
+CREATE FUNCTION agendar_manutencao()
+RETURNS INT
+DETERMINISTIC
+BEGIN
+    DECLARE totalAgendamentos INT;
+    SET totalAgendamentos = 0;
+    INSERT INTO pedidos (id_cliente, data_pedido) SELECT id_cliente, DATE_ADD(CURDATE(), INTERVAL 6 MONTH) FROM clientes;
+    SET totalAgendamentos = ROW_COUNT();
+    RETURN totalAgendamentos;
+END;
+//
+DELIMITER ;
+
+-- Função para calcular a média de idade dos veículos
+DELIMITER //
+CREATE FUNCTION _idade_veiculo_media()
+RETURNS DECIMAL(10, 2)
+DETERMINISTIC
+BEGIN
+    DECLARE mediaIdade DECIMAL(10, 2);
+    SET mediaIdade = 0.0;
+    SELECT AVG(YEAR(CURDATE()) - YEAR(anoFabricacao)) INTO mediaIdade FROM veiculos;
+    RETURN mediaIdade;
+END;
+//
+DELIMITER ;
+
+-- Função para contar o total de pedidos de serviços
+DELIMITER //
+CREATE FUNCTION total_servico()
+RETURNS INT
+DETERMINISTIC
+BEGIN
+    DECLARE total_servico INT;
+    SET total_servico = 0;
+    SELECT COUNT(*) INTO total_servico FROM pedidos;
+    RETURN total_servico;
+END;
+//
+DELIMITER ;
+
+-- Função para verificar se um veículo já foi atendido em um determinado período
+DELIMITER //
+CREATE FUNCTION atendido_periodo(id_veiculo INT, dataInicio DATE, dataFim DATE)
+RETURNS BOOLEAN
+DETERMINISTIC
+BEGIN
+    DECLARE atendido BOOLEAN;
+    SET atendido = FALSE;
+    SELECT 1 INTO atendido FROM relatorioServicos WHERE id_veiculo = id_veiculo AND data_entrada BETWEEN dataInicio AND dataFim;
+    RETURN atendido;
+END;
+//
+DELIMITER ;
+
+USE Desafio_Projeto_SQL_Do_Zero;
+
+-- Inserir dados fictícios na tabela clientes
+INSERT INTO clientes (nome, telefone, endereco, dt_cadastro, email)
+VALUES
+     ('Frida Kahlo', '(11) 2345-6789', 'Rua das Cores, 456', '2023-02-15', 'frida@email.com'),
+    ('Pablo Picasso', '(11) 8765-4321', 'Avenida das Artes, 789', '2023-02-16', 'pablo@email.com'),
+    ('Vincent van Gogh', '(11) 1111-3333', 'Estrada dos Girassóis, 101', '2023-02-17', 'vincent@email.com'),
+    ('Leonardo da Vinci', '(11) 5555-7777', 'Via dos Inventores, 55', '2023-02-18', 'leonardo@email.com'),
+    ('Michelangelo Buonarroti', '(11) 9999-5555', 'Praça das Esculturas, 77', '2023-02-19', 'michelangelo@email.com'),
+    ('Salvador Dalí', '(11) 7777-9999', 'Alameda Surreal, 12', '2023-02-20', 'salvador@email.com'),
+    ('Rembrandt van Rijn', '(11) 4444-8888', 'Travessa das Pinturas, 23', '2023-02-21', 'rembrandt@email.com'),
+    ('Edvard Munch', '(11) 5555-2222', 'Rua dos Gritos, 56', '2023-02-22', 'edvard@email.com'),
+    ('Andy Warhol', '(11) 9999-6666', 'Avenida da Pop Art, 34', '2023-02-23', 'andy@email.com'),
+    ('Jackson Pollock', '(11) 1111-4444', 'Rua das Gotas, 67', '2023-02-24', 'jackson@email.com');
+
+-- Inserir dados fictícios na tabela veiculos
+INSERT INTO veiculos (id_cliente, marca, modelo, ano_fabricacao, placa)
+VALUES
+     (3, 'Toyota', 'Toyota Corolla', 2020, 'PQR1234'),
+    (1, 'Chevrolet', 'Chevrolet Onix', 2022, 'STU5678'),
+    (2, 'Ford', 'Ford Mustang', 2019, 'VWX4321'),
+    (5, 'Nissan', 'Nissan Altima', 2021, 'YZA9876'),
+    (4, 'Hyundai', 'Hyundai Sonata', 2020, 'BCD6543'),
+    (7, 'Kia', 'Kia Stinger', 2021, 'EFG7890'),
+    (6, 'Subaru', 'Subaru Outback', 2022, 'HIJ5432'),
+    (10, 'Volvo', 'Volvo XC90', 2019, 'KLM8765'),
+    (9, 'Land Rover', 'Land Rover Range Rover', 2022, 'NOP2109'),
+    (8, 'Ferrari', 'Ferrari 488', 2021, 'QRS7891');
+
+-- Inserir dados fictícios na tabela servicos
+INSERT INTO servicos (id_veiculo, data_servico, descricao, valor)
+VALUES
+    (5, '2023-02-25', 'Verificação de Freios', 120.00),
+    (7, '2023-03-01', 'Diagnóstico de Motor', 150.00),
+    (3, '2023-03-10', 'Troca de Filtros', 80.00),
+    (9, '2023-03-15', 'Reparo na Suspensão', 200.00),
+    (2, '2023-03-20', 'Balanceamento de Rodas', 50.00),
+    (1, '2023-03-25', 'Alinhamento de Direção', 70.00),
+    (10, '2023-04-01', 'Substituição de Velas', 30.00),
+    (4, '2023-04-05', 'Troca de Óleo e Filtros', 120.00),
+    (8, '2023-04-10', 'Verificação de Sistema Elétrico', 100.00),
+    (6, '2023-04-15', 'Ajuste de Freios', 80.00);
+
+-- Inserir dados fictícios na tabela pedidos
+INSERT INTO pedidos (id_cliente, data_pedido, status_pedido)
+VALUES
+    (5, '2023-02-25', 'Em andamento'),
+    (7, '2023-03-01', 'Em andamento'),
+    (3, '2023-03-10', 'Concluído'),
+    (9, '2023-03-15', 'Concluído'),
+    (2, '2023-03-20', 'Em andamento'),
+    (1, '2023-03-25', 'Concluído'),
+    (10, '2023-04-01', 'Concluído'),
+    (4, '2023-04-05', 'Em andamento'),
+    (8, '2023-04-10', 'Em andamento'),
+    (6, '2023-04-15', 'Concluído');
+
+-- Inserir dados fictícios na tabela itensPedido
+INSERT INTO itensPedido (id_pedido, id_servico, quantidade)
+VALUES
+    (5, 1, 2),
+    (7, 3, 1),
+    (3, 6, 2),
+    (9, 8, 1),
+    (2, 5, 3),
+    (4, 2, 1),
+    (1, 9, 1),
+    (8, 4, 2),
+    (6, 10, 1),
+    (10, 7, 3);
+
+-- Inserir dados fictícios na tabela situacaoPagamento
+INSERT INTO situacaoPagamento (id_pedido, data_pagamento, valor_pago)
+VALUES
+    (6, '2023-02-25', 250.00),
+    (3, '2023-03-01', 180.00),
+    (9, '2023-03-10', 60.00),
+    (2, '2023-03-15', 220.00),
+    (5, '2023-03-20', 400.00),
+    (1, '2023-03-25', 100.00),
+    (8, '2023-04-01', 280.00),
+    (10, '2023-04-05', 120.00),
+    (4, '2023-04-10', 210.00),
+    (7, '2023-04-15', 150.00);
+
+-- Inserir dados fictícios na tabela relatorioServicos
+INSERT INTO relatorioServicos (id_veiculo, data_entrada, data_saida, servico_realizado)
+VALUES
+    (5, '2023-02-25', '2023-02-25', 'Verificação de Freios'),
+    (7, '2023-03-01', '2023-03-02', 'Diagnóstico de Motor'),
+    (3, '2023-03-10', '2023-03-11', 'Troca de Filtros'),
+    (9, '2023-03-15', '2023-03-16', 'Reparo na Suspensão'),
+    (2, '2023-03-20', '2023-03-21', 'Balanceamento de Rodas'),
+    (1, '2023-03-25', '2023-03-26', 'Alinhamento de Direção'),
+    (10, '2023-04-01', '2023-04-02', 'Substituição de Velas'),
+    (4, '2023-04-05', '2023-04-06', 'Troca de Óleo e Filtros'),
+    (8, '2023-04-10', '2023-04-11', 'Verificação de Sistema Elétrico'),
+    (6, '2023-04-15', '2023-04-16', 'Ajuste de Freios');
+	
+------------------------------------------------------------------------------------------------	
+-Queries: Consultas: SELECT 'algo' AS Categoria, * FROM tabela;
+
+-- Informações de CRM - Último serviço por cliente
+SELECT 'Informações de CRM' AS Categoria, c.nome AS nome, MAX(s.data_servico) AS UltimoServico
+FROM clientes c
+LEFT JOIN veiculos v ON c.id_cliente = v.id_cliente
+LEFT JOIN servicos s ON v.id_veiculo = s.id_veiculo
+GROUP BY Categoria, c.nome;
+
+-- Métricas de Frequência de Serviço - Contagem de serviços por mês
+SELECT 'Métricas de Frequência de Serviço' AS Categoria, YEAR(data_servico) AS Ano, MONTH(data_servico) AS Mes, COUNT(*) AS TotalServicos
+FROM servicos
+GROUP BY Categoria, YEAR(data_servico), MONTH(data_servico);
+
+-- Veículos Melhor Cuidados - Média de valor de serviços por marca de veículo
+SELECT 'Veículos Melhor Cuidados' AS Categoria, v.marca AS MarcaVeiculo, AVG(s.valor) AS MediaValor
+FROM veiculos v
+LEFT JOIN servicos s ON v.id_veiculo = s.id_veiculo
+GROUP BY Categoria, v.marca
+HAVING AVG(s.valor) IS NOT NULL;
+
+-- Clientes Inativos - Clientes que não realizaram serviços nos últimos 6 meses
+SELECT 'Clientes Inativos' AS Categoria, c.nome AS nome, MAX(s.data_servico) AS UltimoServico
+FROM clientes c
+LEFT JOIN veiculos v ON c.id_cliente = v.id_cliente
+LEFT JOIN servicos s ON v.id_veiculo = s.id_veiculo
+GROUP BY Categoria, c.nome
+HAVING MAX(s.data_servico) < DATE_SUB(CURDATE(), INTERVAL 6 MONTH);
+
+
+-- Listar tudo que tem na tabela Clientes
+SELECT * FROM clientes;
+
+--Listar os dados de veículos da marca "Toyota":
+SELECT * FROM veiculos WHERE marca = 'Toyota';
+
+
+--Listar veículos com ano de fabricação e idade calculada::
+SELECT id_veiculo, marca, modelo, anoFabricacao, YEAR(CURDATE()) - YEAR(anoFabricacao) AS idade_veiculo FROM veiculos;
+
+Listar a média de valores dos serviços por marca de veículo, apenas para marcas com média acima de 100:
+
+SELECT v.marca, AVG(s.valor) AS media_valor
+FROM veiculos v
+LEFT JOIN servicos s ON v.id_veiculo = s.id_veiculo
+GROUP BY v.marca
+HAVING AVG(s.valor) > 100;
+
+Listar de serviços realizados por cliente com seus detalhes:
+
+SELECT c.nome AS nome, s.descricao AS servico_realizado
+FROM clientes c
+LEFT JOIN veiculos v ON c.id_cliente = v.id_cliente
+LEFT JOIN servicos s ON v.id_veiculo = s.id_veiculo;
+
+
+Listar de pedidos de um cliente com detalhes de serviços e situação de pagamento:
+
+SELECT p.id_pedido, c.nome AS nome, s.descricao AS servico_realizado, sp.data_pagamento AS data_pagamento
+FROM pedidos p
+INNER JOIN clientes c ON p.id_cliente = c.id_cliente
+INNER JOIN itensPedido ip ON p.id_pedido = ip.id_pedido
+INNER JOIN servicos s ON ip.id_servico = s.id_servico
+LEFT JOIN situacaoPagamento sp ON p.id_pedido = sp.id_pedido
+WHERE c.nome = 'Frida Kahlo';
+
+
+
+
+
